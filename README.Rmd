@@ -1,0 +1,183 @@
+---
+title: "Lab 6 Comparing two means"
+author: "Ethan Dotzler"
+date: 04/27/2021
+output: github_document
+---
+
+Researchers studying the number of electric fish species living in various parts of the Amazon basin were interested in whether the presence of tributaries affected the local number of electric fish species in the main rivers (Fernandes et al. 2004).
+
+They counted the number of electric fish species above and below the entrance point of a major tributary at 12 different river locations.
+
+The data is provided in your GitHub repository.
+
+For each question below, write a sentence answering the question and show the code you used to come up with the answer, if applicable.
+
+## Question A
+
+> What is the mean different in the number of species between areas upstream and downstream of a tributary? What is the 95% confidence interval of this mean difference. Show your code and write a sentence giving your answer
+
+ANSWER
+
+```{r}
+# load packages -----------------------------------------------------------
+
+library(tidyverse)
+
+
+# read data ---------------------------------------------------------------
+
+fish <- read_csv("chap12q19ElectricFish.csv")
+
+
+# do stuff ----------------------------------------------------------------
+
+fish_long <- 
+  pivot_longer(fish, speciesUpstream:speciesDownstream,
+               names_to = "location",
+               values_to = "species") %>% 
+  mutate(location = str_remove(location, c("species"))) %>% 
+  print()
+
+head(fish) 
+
+str(fish)
+
+t.test(formula = species ~ location, data = fish_long) 
+
+ttest_results <- t.test(formula = species ~ location, data = fish_long)
+
+ttest_results
+
+diff(ttest_results$estimate)
+
+```
+
+The mean difference in the number of species between Upstream and Downstream is 1.833333. The 95% confidence interval is from -4.587031 to 8.253697.
+
+## Question B
+
+> Test the hypothesis that the tributaries have no effect on the number of species of electric fish.
+
+ANSWER
+
+```{r} 
+
+fish_long_data <-
+  fish_long %>% 
+  group_by(location) %>% 
+  summarize(
+    n = n(),
+    mean = mean(species),
+    sd = sd(species),
+    sem = sd/sqrt(n),
+    upper = mean + 1.96 * sem,
+    lower = mean - 1.96 * sem
+  ) %>% 
+  print()
+
+fish_long %>% 
+  ggplot(aes(x = location, y = species)) + 
+  geom_jitter(aes(color = location), 
+              shape = 16, size = 3, 
+              alpha = 0.3, width = 0.4) + 
+  geom_errorbar(aes(y = mean, ymax = upper, ymin = lower), 
+                data = fish_long_data, 
+                width = 0.1, size = 0.8) + 
+  geom_point(aes(y = mean), 
+             data = fish_long_data, 
+             size = 3) + 
+  scale_color_manual(values = c("dark blue","red")) + 
+  theme_minimal() + 
+  guides(color = "none")
+```
+
+
+## Question C
+
+> State the assumptions that you had to make to complete parts (A) and (B). Create a graph to assess whether one of those assumptions was met.
+
+ANSWER
+
+```{r}
+fish_long %>% 
+  ggplot(aes(x = species)) +
+  geom_histogram(
+    aes(fill = location), 
+    bins = 5, 
+    alpha = 0.5, 
+    position = "identity"
+  ) +
+  scale_fill_manual(values = c("darkorange","cyan4")) +
+  theme_minimal()
+```
+
+We had to assume that the distribution was normal, and that the alternative hypothesis would not be true. Neither assumption was met, as the distribution is not normal, and the 95% confidence interval overlaps 0, which means that the true difference could be 0 at some time. 
+
+## ANOVA
+
+Fiddler crabs are so called because males have a greatly enlarged "major" claw, which is used to attract females and to defend a burrow.
+
+Darnell and Munguia (2011) recently suggested that this appendage might also act as a heat sink, keeping males cooler while out of the burrow on hot days.
+
+To test this, they placed four groups of crabs into separate plastic cups and supplied a source of radiant heat (60-watt light bulb) from above. The four groups were intact male crabs, male crabs with the major claw removed; male crabs with the other (minor) claw removed (control); and intact female fiddler crabs.
+
+They measured the body temperature of crabs every 10 minutes for 1.5 hours. These measurements were used to calculate a rate of heat gain for every individual crab in degrees C/log minute. Rates of heat gain for all crabs are provided in the accompanying data file. 
+
+```{r}
+# Read Data 
+crabs <- read_csv("chap15q27FiddlerCrabFans.csv") %>% 
+  rename(type = crabType, temp = bodyTemperature) 
+crabs 
+
+temp_means <- 
+  crabs %>% 
+  filter(!is.na(temp)) %>%     #remove missing values 
+  group_by(type) %>% 
+  summarize( 
+    mean = mean(temp), 
+    sd = sd(temp), 
+    n = n(), 
+    sem = sd / sqrt(n), 
+    upper = mean + 1.96 * sem, 
+    lower = mean - 1.96 * sem
+  ) %>% 
+  print() 
+```
+
+
+### Question D
+
+Graph the distribution of body temperatures for each crab type:
+
+```{r}
+ggplot(data = crabs, aes(x = type, y = temp)) + 
+  geom_jitter(aes(color = type), 
+              width = 0.1, 
+              alpha = 0.7, 
+              show.legend = FALSE, 
+              na.rm = TRUE) + 
+  geom_errorbar(aes(y = mean, ymin = lower, ymax = upper), 
+                data = temp_means,
+                width = 0.1, position = position_nudge(0.3)) + 
+  geom_point(aes(y = mean), data = temp_means, 
+             position = position_nudge(0.3)) + 
+  scale_color_manual(values = c("darkorange","darkorchid","cyan4","blue3"))
+```
+
+### Question E
+
+Does body temperature varies among crab types? State the null and alternative hypothesis, conduct and ANOVA, and interpret the results.
+
+```{r}
+aov_crab_summary <- 
+  aov(temp ~ type, data = crabs) 
+aov_crab_summary 
+
+summary(aov_crab_summary)
+
+```
+
+Based on the results of the ANOVA test, a p-value of 7e-10 was given. This value is significantly smaller than the alpha level of 0.05 that was assumed, which means we can reject the null hypothesis and accept the alternative hypothesis, which states that at least one of the crab types will vary from the others. 
+
+Based on the distribution graph made in Question D, female crabs appear to have higher temperatures than the other crab types. Male crabs with the major removed also appear to have a higher temperature than the male crabs that have the minor removed,which fits in line with original suggestion that the major acts as a heat sink. 
